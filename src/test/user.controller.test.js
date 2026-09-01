@@ -69,6 +69,7 @@ describe("User Controller Endpoints", () => {
 
             expect(res.status).toBe(400);
             expect(res.body.success).toBe(false);
+            expect(res.body.errors.length).toBeGreaterThan(0);
         });
     });
 

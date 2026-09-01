@@ -3,8 +3,11 @@ import ApiError from "../util/ApiError.js";
 import { User } from "../model/user.model.js";
 import { uploadOnCloudinary } from "../util/cloudinary.js";
 import { ApiResponse } from "../util/ApiResponse.js";
+import { getCookieOptions } from "../util/cookieOptions.js";
+import { sendVerificationEmail } from "../util/email.js";
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
+import crypto from "crypto";
 
 const generateAccessAndRefreshTokens = async (userId) => {
     try {
@@ -24,6 +27,10 @@ const generateAccessAndRefreshTokens = async (userId) => {
 
         return { accessToken, refreshToken };
     } catch (error) {
+        if (error instanceof ApiError) {
+            throw error;
+        }
+
         throw new ApiError(
             500,
             "Something went wrong while generating refresh and access token"
@@ -58,6 +65,8 @@ const registerUser = asyncHandler(async (req, res) => {
         throw new ApiError(400, "avatar file is required");
     }
 
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+
     const user = await User.create({
         fullName,
         avatar: avatar.url,
@@ -65,10 +74,19 @@ const registerUser = asyncHandler(async (req, res) => {
         email,
         password,
         username: username.toLowerCase(),
+        emailVerificationToken: verificationToken,
+        emailVerificationExpiry: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    });
+
+    await sendVerificationEmail(user, verificationToken).catch((err) => {
+        console.error(
+            "User registered but verification email failed:",
+            err.message
+        );
     });
 
     const createdUser = await User.findById(user._id).select(
-        "-password -refreshToken"
+        "-password -refreshToken -emailVerificationToken"
     );
 
     if (!createdUser) {
@@ -81,7 +99,7 @@ const registerUser = asyncHandler(async (req, res) => {
     return res
         .status(201)
         .json(
-            new ApiResponse(200, createdUser, "User registered successfully")
+            new ApiResponse(201, createdUser, "User registered successfully")
         );
 });
 
@@ -110,10 +128,7 @@ const loginUser = asyncHandler(async (req, res) => {
         "-password -refreshToken"
     );
 
-    const options = {
-        httpOnly: true,
-        secure: false,
-    };
+    const options = getCookieOptions();
 
     return res
         .status(200)
@@ -137,20 +152,14 @@ const logoutUser = asyncHandler(async (req, res) => {
     await User.findByIdAndUpdate(
         req.user._id,
         {
-            $set: {
-                refreshToken: undefined,
+            $unset: {
+                refreshToken: 1,
             },
         },
-
-        {
-            new: true,
-        }
+        { new: true }
     );
 
-    const options = {
-        httpOnly: true,
-        secure: true,
-    };
+    const options = getCookieOptions();
 
     return res
         .status(200)
@@ -162,7 +171,7 @@ const logoutUser = asyncHandler(async (req, res) => {
 const refreshAccessToken = asyncHandler(async (req, res) => {
     try {
         const incomingRefreshToken =
-            req.cookies.refreshToken || req.body.refreshToken;
+            req.cookies?.refreshToken || req.body?.refreshToken;
 
         if (!incomingRefreshToken) {
             throw new ApiError(401, "Unauthorized request");
@@ -183,10 +192,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
             throw new ApiError(401, "Refresh token expired or invalid");
         }
 
-        const options = {
-            httpOnly: true,
-            secure: true,
-        };
+        const options = getCookieOptions();
 
         const { accessToken, refreshToken } =
             await generateAccessAndRefreshTokens(user._id);
@@ -206,6 +212,10 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
                 )
             );
     } catch (error) {
+        if (error instanceof ApiError) {
+            throw error;
+        }
+
         throw new ApiError(401, error?.message || "Invalid refresh token");
     }
 });
@@ -214,6 +224,10 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
     const { oldPassword, newPassword } = req.body;
 
     const user = await User.findById(req.user?._id);
+
+    if (!user) {
+        throw new ApiError(404, "User not found");
+    }
 
     const isPassword = await user.isPasswordCorrect(oldPassword);
 
@@ -239,6 +253,15 @@ const getCurrentUser = asyncHandler(async (req, res) => {
 
 const updateAccountDetails = asyncHandler(async (req, res) => {
     const { fullName, email } = req.body;
+
+    const existingUser = await User.findOne({
+        email,
+        _id: { $ne: req.user._id },
+    });
+
+    if (existingUser) {
+        throw new ApiError(409, "Email is already in use");
+    }
 
     const user = await User.findByIdAndUpdate(
         req.user?._id,
@@ -322,10 +345,12 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
         throw new ApiError(400, "username is missing");
     }
 
+    const normalizedUsername = username.trim().toLowerCase();
+
     const channel = await User.aggregate([
         {
             $match: {
-                username: username,
+                username: normalizedUsername,
             },
         },
 
@@ -359,7 +384,7 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
 
                 isSubscribed: {
                     $cond: {
-                        if: { $in: [req.user?._id, "$subscribers.subscriber"] },
+                        if: { $in: [req.user?._id || null, "$subscribers.subscriber"] },
                         then: true,
                         else: false,
                     },
@@ -369,6 +394,7 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
 
         {
             $project: {
+                _id: 1,
                 fullName: 1,
                 username: 1,
                 subscribersCount: 1,
@@ -385,12 +411,18 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
         throw new ApiError(404, "channel doesn't exists");
     }
 
+    const channelData = channel[0];
+
+    if (channelData.username !== req.user?.username) {
+        delete channelData.email;
+    }
+
     return res
         .status(200)
         .json(
             new ApiResponse(
                 200,
-                channel[0],
+                channelData,
                 "user channel fetched successfully"
             )
         );
@@ -452,6 +484,51 @@ const getWatchHistory = asyncHandler(async (req, res) => {
         );
 });
 
+const verifyEmail = asyncHandler(async (req, res) => {
+    const { token } = req.body;
+
+    const user = await User.findOne({
+        emailVerificationToken: token,
+        emailVerificationExpiry: { $gt: new Date() },
+    });
+
+    if (!user) {
+        throw new ApiError(400, "Invalid or expired verification token");
+    }
+
+    user.isEmailVerified = true;
+    user.emailVerificationToken = undefined;
+    user.emailVerificationExpiry = undefined;
+    await user.save({ validateBeforeSave: false });
+
+    return res
+        .status(200)
+        .json(new ApiResponse(200, {}, "Email verified successfully"));
+});
+
+const resendVerificationEmail = asyncHandler(async (req, res) => {
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+        throw new ApiError(404, "User not found");
+    }
+
+    if (user.isEmailVerified) {
+        throw new ApiError(400, "Email is already verified");
+    }
+
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+    user.emailVerificationToken = verificationToken;
+    user.emailVerificationExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    await user.save({ validateBeforeSave: false });
+
+    await sendVerificationEmail(user, verificationToken);
+
+    return res
+        .status(200)
+        .json(new ApiResponse(200, {}, "Verification email sent"));
+});
+
 export {
     registerUser,
     loginUser,
@@ -464,4 +541,6 @@ export {
     updateUserCoverImage,
     getUserChannelProfile,
     getWatchHistory,
+    verifyEmail,
+    resendVerificationEmail,
 };

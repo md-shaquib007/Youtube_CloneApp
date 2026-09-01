@@ -11,9 +11,11 @@ import {
     updateUserCoverImage,
     getUserChannelProfile,
     getWatchHistory,
+    verifyEmail,
+    resendVerificationEmail,
 } from "../controller/user.controller.js";
 import { upload } from "../middleware/multer.middleware.js";
-import verifyJWT from "../middleware/auth.middleware.js";
+import verifyJWT, { optionalVerifyJWT } from "../middleware/auth.middleware.js";
 import { validate } from "../middleware/validation.middleware.js";
 import {
     registerUserSchema,
@@ -21,6 +23,7 @@ import {
     changeCurrentPasswordSchema,
     updateAccountDetailsSchema,
 } from "../schema/user.schema.js";
+import { verifyEmailSchema } from "../schema/search.schema.js";
 
 const router = Router();
 
@@ -41,6 +44,10 @@ router.route("/register").post(
 
 router.route("/login").post(validate(loginUserSchema), loginUser);
 
+router.route("/verify-email").post(validate(verifyEmailSchema), verifyEmail);
+
+router.route("/resend-verification").post(verifyJWT, resendVerificationEmail);
+
 //secured route
 router.route("/logout").post(verifyJWT, logoutUser);
 
@@ -60,7 +67,7 @@ router
     .route("/cover-image")
     .patch(verifyJWT, upload.single("coverImage"), updateUserCoverImage);
 
-router.route("/c/:username").get(verifyJWT, getUserChannelProfile);
+router.route("/c/:username").get(optionalVerifyJWT, getUserChannelProfile);
 
 router.route("/history").get(verifyJWT, getWatchHistory);
 

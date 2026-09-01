@@ -47,6 +47,9 @@ const videoSchema = new mongoose.Schema(
     { timestamps: true }
 );
 
+videoSchema.index({ owner: 1, isPublished: 1, createdAt: -1 });
+videoSchema.index({ title: "text", description: "text" });
+
 //Applied the pagination plugin. The original line had a blank string videoSchema.plugin(""), which caused a TypeError crash upon application boot.
 videoSchema.plugin(mongooseAggregatePaginate);
 

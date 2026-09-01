@@ -34,13 +34,12 @@ export const validate = (schema) => (req, res, next) => {
             });
         }
 
-        // Format Zod validation errors to be easily readable
-        const errors = error.errors
-            ? error.errors.map((err) => {
-                  const fieldPath = err.path.slice(1).join(".");
-                  return `${fieldPath || "input"}: ${err.message}`;
-              })
-            : [];
+        // Zod 4 uses `issues`; older versions used `errors`
+        const zodIssues = error.issues || error.errors || [];
+        const errors = zodIssues.map((err) => {
+            const fieldPath = err.path.slice(1).join(".");
+            return `${fieldPath || "input"}: ${err.message}`;
+        });
             
         next(new ApiError(400, "Validation Failed", errors));
     }

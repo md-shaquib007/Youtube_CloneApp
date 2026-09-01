@@ -1,1 +1,1 @@
-export const DB_Name="proffesionl_chaiBackend"
+export const DB_Name="professional_chai_backend";

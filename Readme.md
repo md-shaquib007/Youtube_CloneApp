@@ -69,7 +69,7 @@ npm install
 Create a file named `.env` at the root of your project (you can copy the structure from the provided `.env.sample` or read below) and add the following keys:
 ```env
 PORT=8000
-CORS_ORIGIN=*
+CORS_ORIGIN=http://localhost:5173
 MONGODB_URI=your_mongodb_connection_string
 ACCESS_TOKEN_SECRET=your_long_random_jwt_secret_here
 ACCESS_TOKEN_EXPIRY=1d

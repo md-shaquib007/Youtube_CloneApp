@@ -5,7 +5,9 @@
     "type": "module",
     "scripts": {
         "dev": "nodemon -r dotenv/config src/index.js",
-        "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest"
+        "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
+        "test:ci": "npm test -- --runInBand --coverage",
+        "verify": "npm test -- --runInBand && npm --prefix frontend run lint && npm --prefix frontend run build"
     },
     "keywords": [
         "javascript",
@@ -29,10 +31,13 @@
         "dotenv": "^17.2.3",
         "express": "^5.1.0",
         "express-mongo-sanitize": "^2.2.0",
+        "express-rate-limit": "^8.7.0",
+        "helmet": "^8.3.0",
         "jsonwebtoken": "^9.0.2",
         "mongoose": "^9.0.0",
         "mongoose-aggregate-paginate-v2": "^1.1.4",
         "multer": "^2.0.2",
+        "nodemailer": "^9.0.3",
         "zod": "^4.4.3"
     }
 }
