@@ -41,6 +41,13 @@ describe("Full API integration", () => {
     });
 
     describe("Health & Search", () => {
+        test("GET / returns root API welcome payload", async () => {
+            const res = await request(app).get("/");
+            expect(res.status).toBe(200);
+            expect(res.body.success).toBe(true);
+            expect(res.body).toHaveProperty("endpoints");
+        });
+
         test("GET /api/v1/health returns ok", async () => {
             const res = await request(app).get("/api/v1/health");
             expect(res.status).toBe(200);

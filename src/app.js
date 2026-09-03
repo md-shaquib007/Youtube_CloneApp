@@ -96,6 +96,26 @@ import likeRouter from "./route/like.route.js";
 import commentRouter from "./route/comment.route.js";
 import playlistRouter from "./route/playlist.route.js";
 
+app.get("/", (req, res) => {
+    return res.status(200).json({
+        success: true,
+        message: "🚀 Welcome to ChaiTube Backend API",
+        version: "1.0.0",
+        documentation: "https://github.com/md-shaquib007/Media-storage-app",
+        health: "/api/v1/health",
+        endpoints: {
+            health: "/api/v1/health",
+            users: "/api/v1/users",
+            videos: "/api/v1/videos",
+            subscriptions: "/api/v1/subscriptions",
+            likes: "/api/v1/likes",
+            comments: "/api/v1/comments",
+            playlists: "/api/v1/playlists",
+            search: "/api/v1/search",
+        },
+    });
+});
+
 app.use("/api/v1/health", healthRouter);
 app.use("/api/v1/users", router);
 app.use("/api/v1/videos", videoRouter);
