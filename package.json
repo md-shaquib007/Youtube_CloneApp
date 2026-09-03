@@ -4,6 +4,7 @@
     "main": "index.js",
     "type": "module",
     "scripts": {
+        "build": "npm --prefix frontend run build",
         "dev": "nodemon -r dotenv/config src/index.js",
         "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
         "test:ci": "npm test -- --runInBand --coverage",
