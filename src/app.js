@@ -92,12 +92,18 @@ import healthRouter from "./route/health.route.js";
 import videoRouter from "./route/video.route.js";
 import subscriptionRouter from "./route/subscription.route.js";
 import searchRouter from "./route/search.route.js";
+import likeRouter from "./route/like.route.js";
+import commentRouter from "./route/comment.route.js";
+import playlistRouter from "./route/playlist.route.js";
 
 app.use("/api/v1/health", healthRouter);
 app.use("/api/v1/users", router);
 app.use("/api/v1/videos", videoRouter);
 app.use("/api/v1/subscriptions", subscriptionRouter);
 app.use("/api/v1/search", searchRouter);
+app.use("/api/v1/likes", likeRouter);
+app.use("/api/v1/comments", commentRouter);
+app.use("/api/v1/playlists", playlistRouter);
 
 app.use(handleMulterError);
 

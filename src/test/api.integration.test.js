@@ -15,6 +15,7 @@ jest.unstable_mockModule("../util/cloudinary.js", () => ({
 
 jest.unstable_mockModule("../util/email.js", () => ({
     sendVerificationEmail: jest.fn(async () => {}),
+    sendPasswordResetEmail: jest.fn(async () => {}),
     isEmailConfigured: jest.fn(() => true),
     useResend: jest.fn(() => true),
 }));

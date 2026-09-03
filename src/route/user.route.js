@@ -13,6 +13,8 @@ import {
     getWatchHistory,
     verifyEmail,
     resendVerificationEmail,
+    forgotPassword,
+    resetPassword,
 } from "../controller/user.controller.js";
 import { upload } from "../middleware/multer.middleware.js";
 import verifyJWT, { optionalVerifyJWT } from "../middleware/auth.middleware.js";
@@ -22,6 +24,8 @@ import {
     loginUserSchema,
     changeCurrentPasswordSchema,
     updateAccountDetailsSchema,
+    forgotPasswordSchema,
+    resetPasswordSchema,
 } from "../schema/user.schema.js";
 import { verifyEmailSchema } from "../schema/search.schema.js";
 
@@ -43,6 +47,10 @@ router.route("/register").post(
 );
 
 router.route("/login").post(validate(loginUserSchema), loginUser);
+
+router.route("/forgot-password").post(validate(forgotPasswordSchema), forgotPassword);
+
+router.route("/reset-password").post(validate(resetPasswordSchema), resetPassword);
 
 router.route("/verify-email").post(validate(verifyEmailSchema), verifyEmail);
 

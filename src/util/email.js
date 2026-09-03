@@ -116,4 +116,53 @@ const sendVerificationEmail = async (user, token) => {
     }
 };
 
-export { sendVerificationEmail, isEmailConfigured, useResend };
+const sendPasswordResetEmail = async (user, token) => {
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+    const resetUrl = `${frontendUrl}/reset-password?token=${token}`;
+
+    const subject = "Reset your ChaiTube Password";
+    const html = `
+        <div style="font-family: sans-serif; max-width: 480px;">
+            <h2>Reset Password Request</h2>
+            <p>Hi ${user.fullName},</p>
+            <p>Click the button below to reset your password:</p>
+            <p>
+                <a href="${resetUrl}"
+                   style="display:inline-block;padding:12px 24px;background:#ff0033;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">
+                    Reset Password
+                </a>
+            </p>
+            <p style="color:#666;font-size:14px;">Or copy this link:<br>${resetUrl}</p>
+            <p style="color:#666;font-size:14px;">This link expires in 1 hour.</p>
+        </div>
+    `;
+
+    const text = `Reset your ChaiTube Password\n\nLink: ${resetUrl}\n\nThis link expires in 1 hour.`;
+
+    if (!isEmailConfigured()) {
+        console.log("\n--- Password Reset (dev mode) ---");
+        console.log(`To:   ${user.email}`);
+        console.log(`Link: ${resetUrl}`);
+        console.log("---------------------------------\n");
+        return;
+    }
+
+    const transporter = createTransporter();
+
+    try {
+        await transporter.sendMail({
+            from: getFromAddress(),
+            to: user.email,
+            subject,
+            text,
+            html,
+        });
+
+        console.log(`Password reset email sent to ${user.email}`);
+    } catch (error) {
+        console.error("Failed to send password reset email:", error.message);
+        throw error;
+    }
+};
+
+export { sendVerificationEmail, sendPasswordResetEmail, isEmailConfigured, useResend };

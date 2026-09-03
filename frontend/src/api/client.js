@@ -172,6 +172,18 @@ export const usersApi = {
   resendVerification() {
     return request(usersBase, '/resend-verification', { method: 'POST' })
   },
+  forgotPassword(email) {
+    return request(usersBase, '/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    })
+  },
+  resetPassword(token, newPassword) {
+    return request(usersBase, '/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token, newPassword }),
+    })
+  },
 }
 
 export const videosApi = {
@@ -220,6 +232,76 @@ export const searchApi = {
   search(query, type = 'all') {
     const params = new URLSearchParams({ q: query, type })
     return request(searchBase, `/?${params}`)
+  },
+}
+
+const likesBase = `${API_ROOT}/api/v1/likes`
+const commentsBase = `${API_ROOT}/api/v1/comments`
+const playlistsBase = `${API_ROOT}/api/v1/playlists`
+
+export const likesApi = {
+  toggleVideoLike(videoId) {
+    return request(likesBase, `/toggle/v/${videoId}`, { method: 'POST' })
+  },
+  toggleCommentLike(commentId) {
+    return request(likesBase, `/toggle/c/${commentId}`, { method: 'POST' })
+  },
+  getLikedVideos(page = 1, limit = 12) {
+    return request(likesBase, `/videos?page=${page}&limit=${limit}`)
+  },
+}
+
+export const commentsApi = {
+  getVideoComments(videoId, page = 1, limit = 10) {
+    return request(commentsBase, `/${videoId}?page=${page}&limit=${limit}`)
+  },
+  getCommentReplies(commentId, page = 1, limit = 10) {
+    return request(commentsBase, `/c/${commentId}/replies?page=${page}&limit=${limit}`)
+  },
+  addComment(videoId, content, parentCommentId = null) {
+    return request(commentsBase, `/${videoId}`, {
+      method: 'POST',
+      body: JSON.stringify({ content, parentCommentId }),
+    })
+  },
+  updateComment(commentId, content) {
+    return request(commentsBase, `/c/${commentId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ content }),
+    })
+  },
+  deleteComment(commentId) {
+    return request(commentsBase, `/c/${commentId}`, { method: 'DELETE' })
+  },
+}
+
+export const playlistsApi = {
+  create(name, description = '', isPrivate = false) {
+    return request(playlistsBase, '/', {
+      method: 'POST',
+      body: JSON.stringify({ name, description, isPrivate }),
+    })
+  },
+  getUserPlaylists(userId) {
+    return request(playlistsBase, `/user/${userId}`)
+  },
+  getById(playlistId) {
+    return request(playlistsBase, `/${playlistId}`)
+  },
+  addVideo(playlistId, videoId) {
+    return request(playlistsBase, `/add/${playlistId}/${videoId}`, { method: 'POST' })
+  },
+  removeVideo(playlistId, videoId) {
+    return request(playlistsBase, `/remove/${playlistId}/${videoId}`, { method: 'DELETE' })
+  },
+  update(playlistId, data) {
+    return request(playlistsBase, `/${playlistId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    })
+  },
+  delete(playlistId) {
+    return request(playlistsBase, `/${playlistId}`, { method: 'DELETE' })
   },
 }
 

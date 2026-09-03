@@ -4,7 +4,7 @@ import { User } from "../model/user.model.js";
 import { uploadOnCloudinary } from "../util/cloudinary.js";
 import { ApiResponse } from "../util/ApiResponse.js";
 import { getCookieOptions } from "../util/cookieOptions.js";
-import { sendVerificationEmail } from "../util/email.js";
+import { sendVerificationEmail, sendPasswordResetEmail } from "../util/email.js";
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 import crypto from "crypto";
@@ -529,6 +529,65 @@ const resendVerificationEmail = asyncHandler(async (req, res) => {
         .json(new ApiResponse(200, {}, "Verification email sent"));
 });
 
+const forgotPassword = asyncHandler(async (req, res) => {
+    const { email } = req.body;
+
+    const user = await User.findOne({ email: email.toLowerCase() });
+    if (!user) {
+        return res
+            .status(200)
+            .json(
+                new ApiResponse(
+                    200,
+                    {},
+                    "If an account with that email exists, a password reset link has been sent"
+                )
+            );
+    }
+
+    const resetToken = crypto.randomBytes(32).toString("hex");
+    user.forgotPasswordToken = resetToken;
+    user.forgotPasswordExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+    await user.save({ validateBeforeSave: false });
+
+    await sendPasswordResetEmail(user, resetToken).catch((err) => {
+        console.error("Password reset email failed:", err.message);
+    });
+
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                {},
+                "If an account with that email exists, a password reset link has been sent"
+            )
+        );
+});
+
+const resetPassword = asyncHandler(async (req, res) => {
+    const { token, newPassword } = req.body;
+
+    const user = await User.findOne({
+        forgotPasswordToken: token,
+        forgotPasswordExpiry: { $gt: new Date() },
+    });
+
+    if (!user) {
+        throw new ApiError(400, "Invalid or expired password reset token");
+    }
+
+    user.password = newPassword;
+    user.forgotPasswordToken = undefined;
+    user.forgotPasswordExpiry = undefined;
+    user.refreshToken = undefined; // Force re-login
+    await user.save({ validateBeforeSave: false });
+
+    return res
+        .status(200)
+        .json(new ApiResponse(200, {}, "Password reset successfully"));
+});
+
 export {
     registerUser,
     loginUser,
@@ -543,4 +602,6 @@ export {
     getWatchHistory,
     verifyEmail,
     resendVerificationEmail,
+    forgotPassword,
+    resetPassword,
 };

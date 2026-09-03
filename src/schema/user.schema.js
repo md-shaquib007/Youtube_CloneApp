@@ -78,3 +78,22 @@ export const updateAccountDetailsSchema = z.object({
             .lowercase(),
     }),
 });
+
+export const forgotPasswordSchema = z.object({
+    body: z.object({
+        email: z
+            .string({ required_error: "Email is required" })
+            .trim()
+            .email("Invalid email format")
+            .lowercase(),
+    }),
+});
+
+export const resetPasswordSchema = z.object({
+    body: z.object({
+        token: z.string().min(1, "Reset token is required"),
+        newPassword: z
+            .string({ required_error: "New password is required" })
+            .min(6, "Password must be at least 6 characters"),
+    }),
+});
