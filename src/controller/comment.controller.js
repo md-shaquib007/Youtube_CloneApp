@@ -227,7 +227,7 @@ const deleteComment = asyncHandler(async (req, res) => {
     const video = await Video.findById(comment.video);
 
     const isCommentOwner = comment.owner.toString() === req.user._id.toString();
-    const isVideoOwner = video?.owner.toString() === req.user._id.toString();
+    const isVideoOwner = video?.owner ? video.owner.toString() === req.user._id.toString() : false;
 
     if (!isCommentOwner && !isVideoOwner) {
         throw new ApiError(403, "You do not have permission to delete this comment");
