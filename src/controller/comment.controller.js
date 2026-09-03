@@ -233,10 +233,11 @@ const deleteComment = asyncHandler(async (req, res) => {
         throw new ApiError(403, "You do not have permission to delete this comment");
     }
 
-    await Comment.deleteMany({
-        $or: [{ _id: commentId }, { parentComment: commentId }],
-    });
-    await Like.deleteMany({ comment: commentId });
+    const childComments = await Comment.find({ parentComment: commentId }).select("_id");
+    const commentIdsToDelete = [commentId, ...childComments.map((c) => c._id)];
+
+    await Comment.deleteMany({ _id: { $in: commentIdsToDelete } });
+    await Like.deleteMany({ comment: { $in: commentIdsToDelete } });
 
     return res
         .status(200)
