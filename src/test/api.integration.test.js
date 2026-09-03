@@ -212,7 +212,9 @@ describe("Full API integration", () => {
         });
 
         test("GET /api/v1/videos/:id returns 404 for missing video", async () => {
-            jest.spyOn(Video, "aggregate").mockResolvedValue([]);
+            jest.spyOn(Video, "findById").mockReturnValue({
+                populate: jest.fn().mockResolvedValue(null),
+            });
 
             const res = await request(app).get(
                 `/api/v1/videos/${mockVideoId}`

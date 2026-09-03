@@ -2,13 +2,16 @@ import { asyncHandler } from "../util/asyncHandler.js";
 import ApiError from "../util/ApiError.js";
 import { Video } from "../model/video.model.js";
 import { User } from "../model/user.model.js";
+import { Like } from "../model/like.model.js";
+import { Comment } from "../model/comment.model.js";
+import { Playlist } from "../model/playlist.model.js";
 import { uploadOnCloudinary } from "../util/cloudinary.js";
 import { ApiResponse } from "../util/ApiResponse.js";
 import mongoose from "mongoose";
 
 const getAllVideos = asyncHandler(async (req, res) => {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 12;
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 12));
 
     const videos = await Video.aggregatePaginate(
         Video.aggregate([
@@ -92,40 +95,23 @@ const getVideoById = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Invalid video ID");
     }
 
-    const video = await Video.aggregate([
-        {
-            $match: {
-                _id: new mongoose.Types.ObjectId(videoId),
-                isPublished: true,
-            },
-        },
-        {
-            $lookup: {
-                from: "users",
-                localField: "owner",
-                foreignField: "_id",
-                as: "owner",
-                pipeline: [
-                    {
-                        $project: {
-                            fullName: 1,
-                            username: 1,
-                            avatar: 1,
-                        },
-                    },
-                ],
-            },
-        },
-        { $addFields: { owner: { $first: "$owner" } } },
-    ]);
+    const video = await Video.findById(videoId).populate(
+        "owner",
+        "fullName username avatar"
+    );
 
-    if (!video?.length) {
+    if (!video) {
         throw new ApiError(404, "Video not found");
+    }
+
+    const isOwner = req.user?._id?.toString() === video.owner._id.toString();
+    if (!video.isPublished && !isOwner) {
+        throw new ApiError(403, "This video is unpublished");
     }
 
     return res
         .status(200)
-        .json(new ApiResponse(200, video[0], "Video fetched successfully"));
+        .json(new ApiResponse(200, video, "Video fetched successfully"));
 });
 
 const updateVideo = asyncHandler(async (req, res) => {
@@ -171,6 +157,10 @@ const deleteVideo = asyncHandler(async (req, res) => {
     }
 
     await Video.findByIdAndDelete(videoId);
+    await Comment.deleteMany({ video: videoId });
+    await Like.deleteMany({ video: videoId });
+    await Playlist.updateMany({}, { $pull: { videos: videoId } });
+    await User.updateMany({}, { $pull: { watchHistory: videoId } });
 
     return res
         .status(200)

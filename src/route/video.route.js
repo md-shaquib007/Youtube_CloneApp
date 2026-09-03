@@ -57,7 +57,7 @@ router.route("/toggle/publish/:videoId").patch(
 
 router
     .route("/:videoId")
-    .get(validate(videoIdParamSchema), getVideoById)
+    .get(optionalVerifyJWT, validate(videoIdParamSchema), getVideoById)
     .patch(verifyJWT, validate(updateVideoSchema), updateVideo)
     .delete(verifyJWT, validate(videoIdParamSchema), deleteVideo);
 
