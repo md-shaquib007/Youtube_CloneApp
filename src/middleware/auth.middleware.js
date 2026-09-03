@@ -3,7 +3,7 @@ import { asyncHandler } from "../util/asyncHandler.js";
 import jwt from "jsonwebtoken";
 import { User } from "../model/user.model.js";
 
-const userSelect = "-password -refreshToken -emailVerificationToken";
+const userSelect = "-password -refreshToken -emailVerificationToken -emailVerificationExpiry -forgotPasswordToken -forgotPasswordExpiry";
 
 const verifyJWT = asyncHandler(async (req, res, next) => {
     try {
