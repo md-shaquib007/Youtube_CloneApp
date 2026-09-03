@@ -248,6 +248,48 @@ describe("Full API integration", () => {
             );
             expect(res.status).toBe(401);
         });
+
+        test("POST /api/v1/subscriptions/c/:channelId toggles subscription", async () => {
+            const jwt = (await import("jsonwebtoken")).default;
+            const token = jwt.sign({ _id: mockUserId }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: "1h" });
+
+            jest.spyOn(User, "findById").mockImplementation((id) => {
+                if (id === mockUserId) {
+                    return { select: jest.fn().mockResolvedValue({ _id: mockUserId }) };
+                }
+                return Promise.resolve({ _id: mockChannelId });
+            });
+            jest.spyOn(Subscription, "findOne").mockResolvedValue(null);
+            jest.spyOn(Subscription, "create").mockResolvedValue({ _id: "sub123" });
+
+            const res = await request(app)
+                .post(`/api/v1/subscriptions/c/${mockChannelId}`)
+                .set("Authorization", `Bearer ${token}`);
+
+            expect(res.status).toBe(200);
+            expect(res.body.data.subscribed).toBe(true);
+        });
+
+        test("GET /api/v1/subscriptions returns user subscribed channels", async () => {
+            const jwt = (await import("jsonwebtoken")).default;
+            const token = jwt.sign({ _id: mockUserId }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: "1h" });
+
+            jest.spyOn(User, "findById").mockReturnValue({
+                select: jest.fn().mockResolvedValue({ _id: mockUserId }),
+            });
+            jest.spyOn(Subscription, "find").mockReturnValue({
+                populate: jest.fn().mockResolvedValue([
+                    { channel: { _id: mockChannelId, username: "creator" } }
+                ]),
+            });
+
+            const res = await request(app)
+                .get("/api/v1/subscriptions")
+                .set("Authorization", `Bearer ${token}`);
+
+            expect(res.status).toBe(200);
+            expect(res.body.data).toHaveLength(1);
+        });
     });
 
     describe("Validation", () => {
