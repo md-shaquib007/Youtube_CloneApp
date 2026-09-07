@@ -217,6 +217,11 @@ export const videosApi = {
   recordView(videoId) {
     return request(videosBase, `/view/${videoId}`, { method: 'POST' })
   },
+  getPresignedUrl(folder = 'chaitube_media', resourceType = 'auto') {
+    return request(videosBase, `/presigned-url?folder=${folder}&resourceType=${resourceType}`, {
+      method: 'POST',
+    })
+  },
 }
 
 export const subscriptionsApi = {

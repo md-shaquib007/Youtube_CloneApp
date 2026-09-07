@@ -10,6 +10,7 @@
   <img src="https://img.shields.io/badge/Vite-v8.1-646CFF?style=for-the-badge&logo=vite&logoColor=white" alt="Vite" />
   <img src="https://img.shields.io/badge/Zod-v4.4-3E67B1?style=for-the-badge&logo=zod&logoColor=white" alt="Zod" />
   <img src="https://img.shields.io/badge/Jest-v30.4-C21325?style=for-the-badge&logo=jest&logoColor=white" alt="Jest" />
+  <img src="https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker" />
   <img src="https://img.shields.io/badge/Security-Helmet_%26_Rate_Limiting-green?style=for-the-badge&logo=shieldsdotio&logoColor=white" alt="Security" />
 </p>
 
@@ -20,7 +21,7 @@
 **ChaiTube** is an enterprise-grade, production-hardened video-sharing application and media platform built with clean architecture, high-performance database indexing, robust security headers, and an interactive UI component system.
 
 > [!NOTE]
-> ChaiTube features end-to-end video publishing, nested comment threads, like/dislike interactions, public/private playlists, email verification, password reset flows, full-text search, and real-time subscription feeds.
+> ChaiTube features end-to-end video publishing, direct presigned client uploads, response caching, Prometheus metrics, structured JSON logging, nested comment threads, like/dislike interactions, public/private playlists, email verification, password reset flows, full-text search, and real-time subscription feeds.
 
 ---
 
@@ -41,8 +42,9 @@
 - **Password Reset Flow**: Secure tokenized forgot-password and password reset workflow.
 - **Sensitive Token Masking**: Mongoose projections exclude `refreshToken`, `emailVerificationToken`, and `forgotPasswordToken` from client payloads.
 
-### 📹 2. Video Pipeline & Storage
-- **Media Upload Pipeline**: Multer middleware with Cloudinary SDK integration for video files and thumbnails.
+### 📹 2. Video Pipeline & Presigned Direct Uploads
+- **Direct Presigned Uploads**: `POST /api/v1/videos/presigned-url` enables clients to upload heavy video assets directly to Cloudinary/S3 without overloading application server memory.
+- **Media Upload Pipeline**: Multer middleware fallback for server-side upload processing.
 - **Publish Controls**: Instant public/private visibility toggles.
 - **Watch History Tracking**: Automatically updates user watch history on video playback.
 - **Cascading Purge**: Deleting a video automatically purges linked comments, likes, playlist entries, and watch history records.
@@ -52,9 +54,10 @@
 - **Threaded Comment System**: Top-level video comments with paginated nested replies and owner moderation controls.
 - **Playlists**: Custom public and private video playlists with instant add/remove actions.
 
-### 🔎 4. Search & Subscriptions
-- **ReDoS-Protected Search**: ReDoS-safe regular expression search across videos and channel profiles.
-- **Channel Subscriptions**: Instant subscription toggling with subscriber counter aggregation.
+### ⚡ 4. Enterprise Performance & Telemetry
+- **Response Caching Middleware**: In-memory / Redis-ready caching middleware (`cacheMiddleware`) with TTL and cache key clearing (`clearCacheKey`).
+- **Structured JSON Logging**: Centralized JSON logger (`logger.info`, `logger.error`) recording ISO timestamps, levels, environments, and custom telemetry data.
+- **System Performance Metrics**: `GET /api/v1/health/metrics` returns Node.js process memory usage (RSS, Heap, External), uptime, CPU usage, and process PID.
 
 ---
 
@@ -64,11 +67,12 @@
 | :--- | :--- |
 | **Backend Runtime** | Node.js (ES Modules `"type": "module"`) & Express 5 |
 | **Database** | MongoDB & Mongoose ODM (Aggregation Pipelines & `mongoose-aggregate-paginate-v2`) |
+| **Caching & Telemetry** | In-Memory / Redis Caching Middleware, Structured JSON Logger, Metrics API |
 | **Validation** | Zod Schema Validation & Sanitization Middleware |
 | **Security** | Helmet Security Headers, Express Rate Limit, Mongo Sanitize, ReDoS Escaping |
-| **Media & Mail** | Cloudinary SDK, Multer Upload, Resend API, Nodemailer |
+| **Media & Mail** | Direct Presigned Uploads, Cloudinary SDK, Multer Upload, Resend API, Nodemailer |
 | **Frontend UI** | React 19, Vite 8, React Router 7, Modern Dark Theme CSS |
-| **Testing & Linting** | Jest 30 (`--experimental-vm-modules`), Supertest, Oxlint |
+| **DevOps & Testing** | Multi-Stage Dockerfile, Docker Compose, Jest 30 (`--experimental-vm-modules`), Oxlint |
 
 ---
 
@@ -80,12 +84,12 @@
 ├── src/
 │   ├── controller/         # User, Video, Like, Comment, Playlist, Subscription & Search logic
 │   ├── db/                 # Database connection & index setup
-│   ├── middleware/         # Auth (JWT), Rate Limiting, Zod Validation, Multer & Error Handling
+│   ├── middleware/         # Auth (JWT), Rate Limiting, Response Caching, Zod Validation & Multer
 │   ├── model/              # Mongoose database models (User, Video, Subscription, Like, Comment, Playlist)
 │   ├── route/              # API routers (/users, /videos, /likes, /comments, /playlists, /search)
 │   ├── schema/             # Zod validation schemas
-│   ├── test/               # Automated unit & integration Jest test suites (39 tests)
-│   ├── util/               # ApiError, ApiResponse, Cloudinary upload, Email service
+│   ├── test/               # Automated unit, integration & E2E Jest test suites (48 tests)
+│   ├── util/               # Presigned Uploads, Logger, ApiError, ApiResponse, Cloudinary, Email
 │   ├── app.js              # Express app setup & SPA fallback routing
 │   ├── constants.js        # Global app constants
 │   └── index.js            # Entry point & graceful server shutdown bootstrap
@@ -93,6 +97,8 @@
 │   ├── src/api/client.js   # Unified API client bindings
 │   ├── src/context/        # Auth & Toast context providers
 │   └── src/hooks/          # Dedicated React custom hooks
+├── Dockerfile              # Multi-stage production Docker containerization
+├── docker-compose.yml      # Orchestration for Node API, MongoDB, and Redis
 ├── .env.sample             # Environment configuration template
 ├── vercel.json             # Vercel deployment configuration
 ├── jest.config.js          # Jest ES Modules test runner config
@@ -124,6 +130,7 @@
 | Method | Endpoint | Description | Auth Required |
 | :--- | :--- | :--- | :--- |
 | `GET` | `/` | Paginated feed of public videos | No |
+| `POST` | `/presigned-url` | Generate direct client-to-cloud upload signature | **Yes** |
 | `POST` | `/publish` | Upload video file & thumbnail | **Yes (Verified Email)** |
 | `GET` | `/:videoId` | Get video details (owner view for unpublished) | Optional |
 | `PATCH` | `/:videoId` | Update video title & description | **Yes** |
@@ -159,13 +166,14 @@
 | `PATCH` | `/:playlistId` | Edit playlist title/privacy | **Yes** |
 | `DELETE` | `/:playlistId` | Delete playlist | **Yes** |
 
-### 6. Subscriptions, Search & System
+### 6. Subscriptions, Search & Telemetry
 | Method | Endpoint | Description | Auth Required |
 | :--- | :--- | :--- | :--- |
 | `POST` | `/api/v1/subscriptions/c/:channelId` | Toggle channel subscription | **Yes** |
 | `GET` | `/api/v1/subscriptions` | Fetch subscribed channels feed | **Yes** |
 | `GET` | `/api/v1/search?q=query` | Full-text search channels/videos | No |
 | `GET` | `/api/v1/health` | Health status check | No |
+| `GET` | `/api/v1/health/metrics` | System telemetry & memory metrics | No |
 | `GET` | `/api` | Root API documentation payload | No |
 
 ---
@@ -199,10 +207,13 @@ RESEND_API_KEY=your_resend_key
 EMAIL_FROM=noreply@chaitube.com
 ```
 
-### 3. Verification & Development Commands
+### 3. Verification & Docker Commands
 ```bash
-# Run complete verification (39 Jest tests + Oxlint + Vite build)
+# Run complete verification (48 Jest tests + Oxlint + Vite build)
 npm run verify
+
+# Start via Docker Compose
+docker-compose up --build
 
 # Start development backend
 npm run dev
@@ -222,10 +233,10 @@ npm test
 ```
 
 > [!TIP]
-> All 7 test suites (39 unit and integration tests) run in isolated memory contexts with zero side-effects.
+> All 9 test suites (48 unit, integration, and E2E tests) run in isolated memory contexts with zero side-effects.
 
 ---
 
 ## 📜 License & Acknowledgments
 
-Built with ❤️ for high-performance media storage and video sharing workflows.
+Built with ❤️ for high-performance media storage, presigned direct uploads, and video sharing workflows.

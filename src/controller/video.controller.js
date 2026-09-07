@@ -246,6 +246,23 @@ const getChannelVideos = asyncHandler(async (req, res) => {
         .json(new ApiResponse(200, videos, "Channel videos fetched successfully"));
 });
 
+import { generatePresignedUploadUrl } from "../util/presignedUpload.js";
+
+const getPresignedUrl = asyncHandler(async (req, res) => {
+    const { folder, resourceType } = req.query;
+    const uploadData = await generatePresignedUploadUrl(folder, resourceType);
+
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                uploadData,
+                "Presigned upload signature generated successfully"
+            )
+        );
+});
+
 export {
     getAllVideos,
     publishAVideo,
@@ -255,4 +272,5 @@ export {
     togglePublishStatus,
     recordView,
     getChannelVideos,
+    getPresignedUrl,
 };

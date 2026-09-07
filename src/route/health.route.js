@@ -29,4 +29,24 @@ router.get("/", (req, res) => {
     );
 });
 
+router.get("/metrics", (req, res) => {
+    const memory = process.memoryUsage();
+
+    return res.status(200).json(
+        new ApiResponse(200, {
+            uptimeSeconds: Math.floor(process.uptime()),
+            processPid: process.pid,
+            nodeVersion: process.version,
+            memory: {
+                rssMB: Math.round(memory.rss / (1024 * 1024)),
+                heapTotalMB: Math.round(memory.heapTotal / (1024 * 1024)),
+                heapUsedMB: Math.round(memory.heapUsed / (1024 * 1024)),
+                externalMB: Math.round(memory.external / (1024 * 1024)),
+            },
+            cpuUsage: process.cpuUsage(),
+            timestamp: new Date().toISOString(),
+        }, "System metrics retrieved successfully")
+    );
+});
+
 export default router;

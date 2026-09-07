@@ -8,6 +8,7 @@ import {
     togglePublishStatus,
     recordView,
     getChannelVideos,
+    getPresignedUrl,
 } from "../controller/video.controller.js";
 import { videoUpload } from "../middleware/multer.middleware.js";
 import verifyJWT, {
@@ -25,6 +26,8 @@ import {
 const router = Router();
 
 router.route("/").get(getAllVideos);
+
+router.route("/presigned-url").post(verifyJWT, getPresignedUrl);
 
 router.route("/publish").post(
     verifyJWT,
