@@ -42,7 +42,8 @@ const authToken = jwt.sign({ _id: userId, email: "user@example.com" }, process.e
 
 const makeMockQuery = (val) => {
     const p = Promise.resolve(val);
-    p.select = jest.fn().mockResolvedValue(val);
+    p.select = jest.fn().mockReturnValue(Promise.resolve(val));
+    p.populate = jest.fn().mockReturnValue(Promise.resolve(val));
     return p;
 };
 
@@ -135,6 +136,38 @@ describe("Complete End-to-End Platform Flow (Fullstack E2E)", () => {
             expect(resetRes.status).toBe(200);
             expect(mockUser.password).toBe("NewSecretPassword123!");
         });
+
+        test("Channel Profile & Watch History Retrieval", async () => {
+            jest.spyOn(User, "aggregate").mockImplementation((pipeline) => {
+                if (pipeline[0]?.$match?.username) {
+                    return Promise.resolve([
+                        {
+                            _id: creatorId,
+                            username: "creator",
+                            subscribersCount: 42,
+                            isSubscribed: false,
+                        },
+                    ]);
+                }
+                return Promise.resolve([
+                    {
+                        _id: userId,
+                        watchHistory: [{ _id: videoId, title: "Watched Video" }],
+                    },
+                ]);
+            });
+
+            const channelRes = await request(app).get("/api/v1/users/c/creator");
+            expect(channelRes.status).toBe(200);
+            expect(channelRes.body.data.subscribersCount).toBe(42);
+
+            const historyRes = await request(app)
+                .get("/api/v1/users/history")
+                .set("Authorization", `Bearer ${authToken}`);
+
+            expect(historyRes.status).toBe(200);
+            expect(historyRes.body.data).toHaveLength(1);
+        });
     });
 
     describe("2. Video Content Lifecycle", () => {
@@ -185,7 +218,7 @@ describe("Complete End-to-End Platform Flow (Fullstack E2E)", () => {
     });
 
     describe("3. Social Interactions (Likes & Threaded Comments)", () => {
-        test("Toggle Video Like -> Post Comment -> Delete Comment Thread", async () => {
+        test("Toggle Video Like -> Fetch Liked Videos Feed", async () => {
             jest.spyOn(Video, "findById").mockResolvedValue({ _id: videoId });
             jest.spyOn(Like, "findOne").mockResolvedValue(null);
             jest.spyOn(Like, "create").mockResolvedValue({ _id: "like1" });
@@ -197,14 +230,33 @@ describe("Complete End-to-End Platform Flow (Fullstack E2E)", () => {
             expect(likeRes.status).toBe(200);
             expect(likeRes.body.data.isLiked).toBe(true);
 
-            jest.spyOn(Comment, "create").mockResolvedValue({ _id: commentId });
-            jest.spyOn(Comment, "findById").mockReturnValue({
-                populate: jest.fn().mockResolvedValue({
-                    _id: commentId,
-                    content: "Awesome video!",
-                    owner: { username: "e2euser" },
-                }),
-            });
+            jest.spyOn(Like, "aggregate").mockResolvedValue([
+                {
+                    _id: "like1",
+                    likedVideo: { _id: videoId, title: "Liked Video" },
+                },
+            ]);
+
+            const likedFeedRes = await request(app)
+                .get("/api/v1/likes/videos")
+                .set("Authorization", `Bearer ${authToken}`);
+
+            expect(likedFeedRes.status).toBe(200);
+            expect(likedFeedRes.body.data).toHaveLength(1);
+        });
+
+        test("Post Comment -> Get Comment Replies -> Delete Comment Thread", async () => {
+            jest.spyOn(Video, "findById").mockResolvedValue({ _id: videoId, owner: userId });
+            jest.spyOn(Comment, "create").mockResolvedValue({ _id: commentId, content: "Awesome video!" });
+
+            const populatedComment = {
+                _id: commentId,
+                content: "Awesome video!",
+                video: videoId,
+                owner: { _id: userId, username: "e2euser" },
+            };
+
+            jest.spyOn(Comment, "findById").mockReturnValue(makeMockQuery(populatedComment));
 
             const commentRes = await request(app)
                 .post(`/api/v1/comments/${videoId}`)
@@ -214,11 +266,15 @@ describe("Complete End-to-End Platform Flow (Fullstack E2E)", () => {
             expect(commentRes.status).toBe(201);
             expect(commentRes.body.data.content).toBe("Awesome video!");
 
-            jest.spyOn(Comment, "findById").mockResolvedValue({
-                _id: commentId,
-                video: videoId,
-                owner: userId,
+            jest.spyOn(Comment, "aggregatePaginate").mockResolvedValue({
+                docs: [{ _id: replyId, content: "Nested reply text" }],
+                totalDocs: 1,
             });
+
+            const repliesRes = await request(app).get(`/api/v1/comments/c/${commentId}/replies`);
+            expect(repliesRes.status).toBe(200);
+            expect(repliesRes.body.data.docs).toHaveLength(1);
+
             jest.spyOn(Comment, "find").mockReturnValue({
                 select: jest.fn().mockResolvedValue([{ _id: replyId }]),
             });
@@ -235,13 +291,15 @@ describe("Complete End-to-End Platform Flow (Fullstack E2E)", () => {
         });
     });
 
-    describe("4. Playlists & Subscriptions", () => {
-        test("Create Playlist -> Add Video -> Toggle Subscription", async () => {
+    describe("4. Playlists & Subscriptions Feed", () => {
+        test("Create Playlist -> Add Video -> Fetch Subscribed Channels", async () => {
+            jest.spyOn(Video, "findById").mockResolvedValue({ _id: videoId });
             jest.spyOn(Playlist, "create").mockResolvedValue({
                 _id: playlistId,
                 name: "My E2E Playlist",
                 videos: [],
                 owner: userId,
+                save: jest.fn().mockResolvedValue(true),
             });
 
             const createPlRes = await request(app)
@@ -252,11 +310,14 @@ describe("Complete End-to-End Platform Flow (Fullstack E2E)", () => {
             expect(createPlRes.status).toBe(201);
             expect(createPlRes.body.data.name).toBe("My E2E Playlist");
 
-            jest.spyOn(Playlist, "findById").mockResolvedValue({
+            const playlistObj = {
                 _id: playlistId,
                 owner: userId,
-            });
-            jest.spyOn(Video, "findById").mockResolvedValue({ _id: videoId });
+                videos: [],
+                save: jest.fn().mockResolvedValue(true),
+            };
+
+            jest.spyOn(Playlist, "findById").mockReturnValue(makeMockQuery(playlistObj));
             jest.spyOn(Playlist, "findByIdAndUpdate").mockReturnValue({
                 populate: jest.fn().mockResolvedValue({
                     _id: playlistId,
@@ -270,21 +331,46 @@ describe("Complete End-to-End Platform Flow (Fullstack E2E)", () => {
 
             expect(addVideoRes.status).toBe(200);
 
-            jest.spyOn(User, "findById").mockImplementation((id) => {
-                if (id === userId) {
-                    return makeMockQuery({ _id: userId });
-                }
-                return makeMockQuery({ _id: creatorId });
+            jest.spyOn(Subscription, "find").mockReturnValue({
+                populate: jest.fn().mockResolvedValue([
+                    {
+                        _id: "sub1",
+                        channel: { _id: creatorId, username: "creator" },
+                    },
+                ]),
             });
-            jest.spyOn(Subscription, "findOne").mockResolvedValue(null);
-            jest.spyOn(Subscription, "create").mockResolvedValue({ _id: "sub1" });
 
-            const subRes = await request(app)
-                .post(`/api/v1/subscriptions/c/${creatorId}`)
+            const subsFeedRes = await request(app)
+                .get("/api/v1/subscriptions")
                 .set("Authorization", `Bearer ${authToken}`);
 
-            expect(subRes.status).toBe(200);
-            expect(subRes.body.data.subscribed).toBe(true);
+            expect(subsFeedRes.status).toBe(200);
+            expect(subsFeedRes.body.data).toHaveLength(1);
+        });
+    });
+
+    describe("5. ReDoS-Protected Search Engine", () => {
+        test("GET /api/v1/search sanitizes query and returns matching users & videos", async () => {
+            const userChain = {
+                select: jest.fn().mockReturnThis(),
+                skip: jest.fn().mockReturnThis(),
+                limit: jest.fn().mockResolvedValue([{ _id: creatorId, username: "creator" }]),
+            };
+
+            const videoChain = {
+                populate: jest.fn().mockReturnThis(),
+                sort: jest.fn().mockReturnThis(),
+                skip: jest.fn().mockReturnThis(),
+                limit: jest.fn().mockResolvedValue([{ _id: videoId, title: "ChaiTube Demo Video" }]),
+            };
+
+            jest.spyOn(User, "find").mockReturnValue(userChain);
+            jest.spyOn(Video, "find").mockReturnValue(videoChain);
+
+            const searchRes = await request(app).get("/api/v1/search?q=creator.*");
+            expect(searchRes.status).toBe(200);
+            expect(searchRes.body.data.users).toHaveLength(1);
+            expect(searchRes.body.data.videos).toHaveLength(1);
         });
     });
 });

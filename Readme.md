@@ -209,7 +209,7 @@ EMAIL_FROM=noreply@chaitube.com
 
 ### 3. Verification & Docker Commands
 ```bash
-# Run complete verification (48 Jest tests + Oxlint + Vite build)
+# Run complete verification (51 Jest tests + Oxlint + Vite build)
 npm run verify
 
 # Start via Docker Compose
@@ -233,7 +233,7 @@ npm test
 ```
 
 > [!TIP]
-> All 9 test suites (48 unit, integration, and E2E tests) run in isolated memory contexts with zero side-effects.
+> All 9 test suites (51 unit, integration, and E2E tests) run in isolated memory contexts with zero side-effects.
 
 ---
 
